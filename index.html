@@ -1,67 +1,663 @@
-// Initialize Telegram WebApp
-if (window.Telegram && window.Telegram.WebApp) {
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
-}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тайный Санта</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-// Global state
-let currentPriority = 0;
-let currentUser = {
-    id: 'user-' + Date.now(),
-    name: 'Пользователь',
-    wishes: []
-};
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            padding-bottom: 60px;
+        }
 
-let allUsers = [];
-let currentFilter = 'all';
-let selectedUserId = null;
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #d4af37;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
 
-// Initialize app
-function initApp() {
-    loadData();
-    renderWishes();
-    renderPeople();
-    updateProfileStats();
-    selectPriority(0);
-    
-    // Real-time sync with Telegram backend (simulated)
-    // In production, this would connect to your actual backend
-    setInterval(() => {
-        syncWithBackend();
-    }, 3000);
-}
+        .header h1 {
+            color: #d4af37;
+            font-size: 24px;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        }
 
-// Load data from memory (simulating localStorage)
-function loadData() {
-    // In a real app, this would load from localStorage
-    // But since localStorage is blocked, we'll keep everything in memory
-    
-    // Initialize with current user
-    if (!currentUser.name || currentUser.name === 'Пользователь') {
-        currentUser.name = 'Я';
-    }
-    
-    // Initialize demo users - start with empty wishes
-    if (allUsers.length === 0) {
-        allUsers = [
-            {
-                id: currentUser.id,
-                name: currentUser.name,
-                wishes: currentUser.wishes
-            },
-            {
-                id: 'user-demo-1',
-                name: 'Анна',
-                wishes: []
-            },
-            {
-                id: 'user-demo-2',
-                name: 'Максим',
-                wishes: []
-            },
-            {
-                id: 'user-demo-3',
-                name: 'София',
-                wishes: []
-             
+        .sync-indicator {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: rgba(212, 175, 55, 0.9);
+            color: #0a0a0a;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .sync-indicator.visible {
+            opacity: 1;
+        }
+
+        .tabs {
+            display: flex;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 70px;
+            z-index: 99;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            color: #d4af37;
+            border-bottom-color: #d4af37;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #d4af37;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: #d4af37;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .priority-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .priority-option {
+            flex: 1;
+            padding: 12px;
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .priority-option input {
+            display: none;
+        }
+
+        .priority-option:hover {
+            border-color: #d4af37;
+        }
+
+        .priority-option input:checked + label {
+            color: #d4af37;
+        }
+
+        .priority-option input:checked ~ .priority-option {
+            border-color: #d4af37;
+            background: rgba(212, 175, 55, 0.1);
+        }
+
+        .priority-option.selected {
+            border-color: #d4af37;
+            background: rgba(212, 175, 55, 0.1);
+        }
+
+        .priority-label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            cursor: pointer;
+        }
+
+        .priority-icon {
+            display: block;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0a;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .wish-list {
+            margin-top: 24px;
+        }
+
+        .wish-item {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .wish-item:hover {
+            border-color: #d4af37;
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+        }
+
+        .wish-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .wish-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+            flex: 1;
+        }
+
+        .wish-priority {
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .wish-meta {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .wish-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-can-give {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border: 1px solid #2ecc71;
+        }
+
+        .badge-cannot-give {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
+        }
+
+        .wish-article {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .wish-description {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+
+        .wish-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 8px;
+            background: rgba(212, 175, 55, 0.1);
+            border: 1px solid #d4af37;
+            border-radius: 6px;
+            color: #d4af37;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: rgba(212, 175, 55, 0.2);
+        }
+
+        .btn-delete {
+            background: rgba(231, 76, 60, 0.1);
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+
+        .btn-delete:hover {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        .people-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .person-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .person-card:hover {
+            border-color: #d4af37;
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .person-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .person-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #0a0a0a;
+        }
+
+        .person-info {
+            flex: 1;
+        }
+
+        .person-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .person-stats {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .profile-container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .profile-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: #0a0a0a;
+            margin: 0 auto 16px;
+        }
+
+        .profile-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .profile-status {
+            font-size: 14px;
+            color: #d4af37;
+            font-weight: 600;
+            font-style: italic;
+            margin-bottom: 16px;
+        }
+
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(212, 175, 55, 0.1);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #d4af37;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: block;
+        }
+
+        .modal-content {
+            background: #0a0a0a;
+            margin: 20px;
+            border-radius: 12px;
+            border: 2px solid #d4af37;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #d4af37;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .modal-close:hover {
+            color: #d4af37;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #888;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background: rgba(212, 175, 55, 0.1);
+            border-color: #d4af37;
+            color: #d4af37;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sync-indicator" id="syncIndicator">Синхронизируется...</div>
+
+    <div class="header">
+        <h1>🎅 Тайный Санта</h1>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('wishes')">Желания</button>
+        <button class="tab" onclick="switchTab('people')">Люди</button>
+        <button class="tab" onclick="switchTab('profile')">Профиль</button>
+    </div>
+
+    <!-- Вкладка Желания -->
+    <div class="tab-content active" id="wishes-tab">
+        <form id="wishForm" onsubmit="addWish(event)">
+            <div class="form-group">
+                <label class="form-label">Название желания</label>
+                <input type="text" class="form-input" id="wishTitle" placeholder="Например: Книга 'Война и мир'" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Артикул (необязательно)</label>
+                <input type="text" class="form-input" id="wishArticle" placeholder="Например: ISBN 978-5-17-123456-7">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Описание</label>
+                <textarea class="form-textarea" id="wishDescription" placeholder="Подробное описание желания..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Категория</label>
+                <select class="form-select" id="wishCategory" required>
+                    <option value="can-give">✅ Можно дарить</option>
+                    <option value="cannot-give">❌ Нельзя дарить</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Приоритет</label>
+                <div class="priority-group">
+                    <div class="priority-option" onclick="selectPriority(0)" id="priority-0">
+                        <span class="priority-icon">-</span>
+                        <span class="priority-label">Обычное</span>
+                    </div>
+                    <div class="priority-option" onclick="selectPriority(1)" id="priority-1">
+                        <span class="priority-icon">⭐</span>
+                        <span class="priority-label">Важное</span>
+                    </div>
+                    <div class="priority-option" onclick="selectPriority(2)" id="priority-2">
+                        <span class="priority-icon">⭐⭐</span>
+                        <span class="priority-label">Очень важное</span>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn">Добавить желание</button>
+        </form>
+
+        <div class="wish-list" id="wishList"></div>
+    </div>
+
+    <!-- Вкладка Люди -->
+    <div class="tab-content" id="people-tab">
+        <div class="people-list" id="peopleList"></div>
+    </div>
+
+    <!-- Вкладка Профиль -->
+    <div class="tab-content" id="profile-tab">
+        <div class="profile-container">
+            <div class="profile-header">
+                <div class="profile-avatar" id="profileAvatar">👤</div>
+                <div class="profile-name" id="profileName">Пользователь</div>
+                <div class="profile-status">@glitchifyy Creator</div>
+                
+                <div class="profile-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalWishes">0</div>
+                        <div class="stat-label">Всего желаний</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="canGiveCount">0</div>
+                        <div class="stat-label">Можно дарить</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="cannotGiveCount">0</div>
+                        <div class="stat-label">Нельзя дарить</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Ваше имя</label>
+                <input type="text" class="form-input" id="userName" placeholder="Введите ваше имя">
+            </div>
+
+            <button class="btn" onclick="saveProfile()">Сохранить профиль</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно профиля пользователя -->
+    <div class="modal" id="userModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalUserName">Профиль пользователя</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterWishes('all')" id="filter-all">Все</button>
+                    <button class="filter-btn" onclick="filterWishes('can-give')" id="filter-can-give">Можно дарить</button>
+                    <button class="filter-btn" onclick="filterWishes('cannot-give')" id="filter-cannot-give">Нельзя дарить</button>
+                </div>
+                <div id="modalWishList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
