@@ -1,0 +1,67 @@
+// Initialize Telegram WebApp
+if (window.Telegram && window.Telegram.WebApp) {
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+}
+
+// Global state
+let currentPriority = 0;
+let currentUser = {
+    id: 'user-' + Date.now(),
+    name: 'Пользователь',
+    wishes: []
+};
+
+let allUsers = [];
+let currentFilter = 'all';
+let selectedUserId = null;
+
+// Initialize app
+function initApp() {
+    loadData();
+    renderWishes();
+    renderPeople();
+    updateProfileStats();
+    selectPriority(0);
+    
+    // Real-time sync with Telegram backend (simulated)
+    // In production, this would connect to your actual backend
+    setInterval(() => {
+        syncWithBackend();
+    }, 3000);
+}
+
+// Load data from memory (simulating localStorage)
+function loadData() {
+    // In a real app, this would load from localStorage
+    // But since localStorage is blocked, we'll keep everything in memory
+    
+    // Initialize with current user
+    if (!currentUser.name || currentUser.name === 'Пользователь') {
+        currentUser.name = 'Я';
+    }
+    
+    // Initialize demo users - start with empty wishes
+    if (allUsers.length === 0) {
+        allUsers = [
+            {
+                id: currentUser.id,
+                name: currentUser.name,
+                wishes: currentUser.wishes
+            },
+            {
+                id: 'user-demo-1',
+                name: 'Анна',
+                wishes: []
+            },
+            {
+                id: 'user-demo-2',
+                name: 'Максим',
+                wishes: []
+            },
+            {
+                id: 'user-demo-3',
+                name: 'София',
+                wishes: []
+             
